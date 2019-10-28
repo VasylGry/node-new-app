@@ -1,6 +1,9 @@
 import React from 'react';
 import logo from './logo.svg';
 import './App.css';
+// import { progJson } from './prog.json';
+
+var server_path = window.location.host;
 
 const jsonData = [
 		{id: 1, time: "08:20:00", pump: 1},
@@ -16,85 +19,180 @@ class CtrlButton extends React.Component {
     super(props);
     this.state = {
       isOn: false,
-      devices: [{id: 1, time: "08:20:00", pump: 1, light: 0 }]
+      cmd:  ""
     }
     this.handleClick = this.handleClick.bind(this);
-  }
-
-  renderTableHeader() {
-    let header = Object.keys(this.state.devices[0])
-    return header.map((key, index) => {
-       return <th key={index}>{key.toUpperCase()}</th>
-    })
- }
-
-  renderTableData() {
-      return jsonData.map((device, index) => {
-         const {id, time, pump, light } = device //destructuring
-         return (
-            <tr key={id}>
-               <td>{id}</td>
-               <td>{time}</td>
-               <td>{pump === undefined ? '********' : pump === 1 ? "ON" : "OFF"}</td>
-               <td>{light === undefined ? '********' : light=== 1 ? "ON" : "OFF"}</td>
-            </tr>
-         );
-      });
-   }
- 
-   handleClick() {
+  } 
+  handleClick() {
     this.setState(state => ({
         isOn: !state.isOn
     }));
+    const onOff = this.state.isOn ? 0 : 1;
+    const url = server_path + '/progs.json';
+    
+  fetch('./progs.json')
+    .then(response => {
+      console.log(response);
+      return response.json();
+    })
+    .then(result => {
+      this.setState({cmd : result});
+		  console.log(this.state.cmd);
+    });
   }
- 
   render() {
-    const mystyle = {
-      color: "black",
-      backgroundColor: "DodgerBlue",
-      padding: "10px",
-      fontFamily: "Arial"
-    };
     return (
       <div>
-          <button onClick={this.handleClick}>
+          <button onClick={this.handleClick} >
             {this.state.isOn ? 'Вкл.' : 'Выкл.'}
           </button>
-		    <table id='device'>
-			    <tbody>
-            <tr className="App-devices-th">{this.renderTableHeader()}</tr>
-          	{this.renderTableData()}
-          </tbody>
-    	  </table>
-      </div>
+          <label>{this.props.name}</label>
+       </div>
     )
   }
 }
 
-function App() {
+class ProgramRow extends React.Component {
+  render() {
+    const name = this.props.name;
+    return (
+      <tr>
+        <th colSpan="2">
+          {name}
+        </th>
+      </tr>
+    );
+  }
+}
 
-  return (
-	
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-		<p>
-			<CtrlButton name = " Полив" />
-		</p>
-        <p>
-          Edit <code>src/App.js</code> and save to reload !
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+class DeviceRow extends React.Component {
+  render() {
+    const device = this.props.device;
+    const time = device.time;
+    const onOff = device.onOff ? undefined : device.onOff;
+    const temperature = device.temperature ? undefined : device.temperature;
+    return (
+      <tr>
+        <td>{time}</td>
+        <td>{onOff}</td>
+        <td>{temperature}</td>
+      </tr>
+    );
+  }
+}
+
+class ProgramTable extends React.Component {
+  render() {
+    const rows = [];
+    let lastName = null;
+    
+    this.props.programs.forEach((program) => {
+      if (program.device !== lastName) {
+        rows.push(
+          <ProgramRow
+            device={program.device}
+            key={program.device} />
+        );
+      }
+      rows.push(
+        <DeviceRow
+          device={program.device}
+          key={program.device} />
+      );
+      lastName = program.device;
+    });
+
+    return (
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>State</th>
+            <th>Temperature [min, max]</th>
+          </tr>
+        </thead>
+        <tbody>{rows}</tbody>
+      </table>
+    );
+  }
+}
+
+class TestPage extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      value: 1,
+      dateTime: '',
+      temperature: '',
+      programs: [], //this.handlePrograms(),
+      date: new Date()};
+
+    this.handleChange = this.handleChange.bind(this);
+    this.handleSubmit = this.handleSubmit.bind(this);
+    this.handlePrograms = this.handlePrograms.bind(this);
+  }
+
+  handleChange(event) {
+    this.setState({value: event.target.value});
+  }
+
+  handleSubmit(event) {
+    this.handlePrograms(this.state.value);
+  //        alert('Выбрана Программа №' + this.state.value);
+    event.preventDefault();
+  }
+
+  handlePrograms(id) {
+    const prog_id = Number(id);  
+    fetch('./progs.json')
+    .then(response => {
+      console.log(prog_id + " typrof:  " + typeof(prog_id))
+      return response.json();
+    }).then(result => {
+      this.setState({programs : result.filter(object => object.id === prog_id)
+      });
+//          console.log(this.state.programs)
+    }).catch(err => {
+      console.log("Error Reading data " + err);
+    });
+  }
+
+  render() {
+    return (
+      <div>
+     <p>
+			  <CtrlButton name = " Load json" />
+		  </p>
+      <label>
+        Программа&nbsp;&nbsp;:
+        <select defaultValue = "Выберите программу" onChange={this.handleChange}>
+          <option value="1">Программа №1</option>
+          <option value="2">Программа №2</option>
+          <option value="3">Программа №3</option>
+          <option value="4">Программа №4</option>
+        </select>
+      </label>
+      <form onSubmit={this.handleSubmit}>
+        <input type="submit" value="Выбрать" />
+      </form>
+      <div>
+        <ProgramTable programs = {this.state.programs} />
+      </div>
+      <div>
+        <p>{JSON.stringify(this.state.programs)}</p>
+      </div>
     </div>
-  );
+  );}
+}
+
+function App() {
+//  render() {
+    return (
+      <div>
+        < TestPage />
+      </div>
+    );
+//  }
 }
 
 export default App;
